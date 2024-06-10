@@ -10,6 +10,11 @@ import {
   createBurnInstruction,
   getAssociatedTokenAddressSync,
   createMintToInstruction,
+  getAccount,
+  createAssociatedTokenAccountInstruction,
+  TokenAccountNotFoundError,
+  TokenInvalidAccountOwnerError,
+  createInitializeAccountInstruction,
 } from "@solana/spl-token";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import BN from "bn.js";
@@ -23,6 +28,10 @@ const TokenBurn = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const tokenBurnAndMint = async () => {
+    if (publicKey === undefined || publicKey === null) {
+      showToast("info", "Please connect Wallet");
+      return;
+    }
     setIsProcessing(true);
     const selectedToken = tokens.find((token) => token.key === burnToken);
     console.log(selectedToken, gold);
@@ -37,7 +46,7 @@ const TokenBurn = () => {
 
     const goldMint = new web3.PublicKey(gold.tokenMint);
     console.log("gold mint:", goldMint);
-    let goldInfo = await connection.getParsedAccountInfo(goldMint);
+    let goldInfo = await connection.getParsedAccountInfo(goldMint); // or await getMint(goldMint)
 
     console.log("gold decimal: ", goldInfo.value?.data.parsed.info.decimals);
 
@@ -62,13 +71,48 @@ const TokenBurn = () => {
       true,
       programID
     );
-    console.log(tokenAta);
+
+    console.log("tokenATA:", tokenAta);
+
+    const tokenAtaInfo = await connection.getAccountInfo(tokenAta);
+    if (tokenAtaInfo) {
+      console.log(
+        "Associated token account already exists:",
+        tokenAta.toString()
+      );
+    } else {
+      console.log("token alive");
+      showToast("error", "No enough token")
+      setIsProcessing(false);
+      return;
+    }
+
     const goldAta = await getAssociatedTokenAddressSync(
       goldMint,
       publicKey,
       true,
       goldProgramID
     );
+
+    const goldAtaInfo = await connection.getAccountInfo(goldAta);
+    if (goldAtaInfo) {
+      console.log(
+        "Associated token account already exists:",
+        goldAta.toString()
+      );
+    } else {
+      console.log("token alive");
+      const goldAtaInstruction = createAssociatedTokenAccountInstruction(
+        publicKey,
+        goldAta,
+        publicKey,
+        goldMint,
+        goldProgramID
+      );
+      transaction.add(goldAtaInstruction);
+    }
+
+
     const burnInstruction = createBurnInstruction(
       tokenAta,
       tokenMint,
@@ -88,15 +132,17 @@ const TokenBurn = () => {
     console.log(burnInstruction);
     transaction.add(burnInstruction).add(mintInstruction);
 
-    sendTransaction(transaction, connection).then((sig) => {
-      console.log(sig);
-      showToast("success", "Token burned and received Gold!!!");
-      setTx(`https://explorer.solana.com/tx/${sig}?cluster=devnet`);
-      setIsProcessing(false);
-    }).catch(err=>{
-      console.log(err.message);
-      setIsProcessing(false);
-    });
+    sendTransaction(transaction, connection)
+      .then((sig) => {
+        console.log(sig);
+        showToast("success", "Token burned and received Gold!!!");
+        setTx(`https://explorer.solana.com/tx/${sig}?cluster=devnet`);
+        setIsProcessing(false);
+      })
+      .catch((err) => {
+        console.log(err.message);
+        setIsProcessing(false);
+      });
   };
 
   return (
@@ -118,12 +164,20 @@ const TokenBurn = () => {
               >{`${token.label} => ${token.goldRate} Gold`}</SelectItem>
             ))}
           </Select>
-          <Button color="primary" variant="ghost" onClick={tokenBurnAndMint} isDisabled={isProcessing} isLoading={isProcessing}>
+          <Button
+            color="primary"
+            variant="ghost"
+            onClick={tokenBurnAndMint}
+            isDisabled={isProcessing}
+            isLoading={isProcessing}
+          >
             Burn and Mint Gold
           </Button>
         </div>
         <div className="mt-12 w-full text-center">
-          <a target="_blank" href={tx}>Check Transaction Hash</a>
+          <a target="_blank" href={tx}>
+            Check Transaction Hash
+          </a>
         </div>
       </div>
     </>
