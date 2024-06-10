@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import WalletContextProvider from "@/providers/WalletContextProvider";
+import {NextUIProvider} from "@nextui-org/react";
+import dynamic from 'next/dynamic';
+import ToastProvider from "@/lib/react-notify/ToastProvider";
+import NextTopLoader from 'nextjs-toploader';
+
+ 
+const Header = dynamic(() => import('@/components/Header'), { ssr: false })
+
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -14,9 +23,32 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+      <NextTopLoader 
+          color="#2299DD"
+          initialPosition={0.08}
+          crawlSpeed={200}
+          height={3}
+          crawl={true}
+          showSpinner={true}
+          easing="ease"
+          speed={200}
+          shadow="0 0 10px #2299DD,0 0 5px #2299DD"
+        />
+        <NextUIProvider>
+          <WalletContextProvider>
+          <ToastProvider>
+
+            <Header/>
+            {children}
+          </ToastProvider>
+
+          </WalletContextProvider>
+        </NextUIProvider>
+      </body>
     </html>
   );
 }
